@@ -9,7 +9,7 @@
 
 ### Documentation
 1. **README.md** - Complete technical documentation with API endpoints
-2. **CUSTOMER_RESPONSE.md** - Executive summary for customer explaining 8/12 fields
+2. **EXECUTIVE_SUMMARY.md** - Executive summary explaining 8/12 fields
 
 ### Sample Output Files
 1. **CopilotAgents_Complete_20260111-195303.csv** - Example final report (115 agents)
@@ -106,7 +106,7 @@ The critical **Billed and Non-Billed Credits** fields are now available through 
 ```
 AgentCustomReport/
 ├── README.md                           # Full technical documentation
-├── CUSTOMER_RESPONSE.md               # Executive summary
+├── EXECUTIVE_SUMMARY.md               # Executive summary
 ├── GITHUB_CHECKLIST.md                # This file
 └── scripts/
     ├── Get-AllAgents-InventoryAPI-v2.ps1

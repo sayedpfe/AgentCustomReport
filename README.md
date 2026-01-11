@@ -338,4 +338,9 @@ MIT License - Use at your own risk
 
 ---
 
+**Documentation Files:**
+- README.md - Technical documentation
+- EXECUTIVE_SUMMARY.md - Executive summary
+- GITHUB_CHECKLIST.md - Implementation guide
+
 **Last Updated**: January 11, 2026
