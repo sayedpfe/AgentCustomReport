@@ -156,7 +156,7 @@ All scripts use **OAuth 2.0 Device Code Flow**:
 
 1. **Run Inventory API script** to get all agents:
    ```powershell
-   cd mzcustomscripts
+   cd scripts
    .\Get-AllAgents-InventoryAPI-v2.ps1
    ```
 

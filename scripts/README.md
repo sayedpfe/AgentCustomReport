@@ -104,7 +104,7 @@ The Inventory API provides **9 of 12** mandatory customer fields:
 
 ```powershell
 # 1. Navigate to scripts folder
-cd "d:\OneDrive\OneDrive - Microsoft\Documents\Learning Projects\AgentCustomReport\mzcustomscripts"
+cd "d:\OneDrive\OneDrive - Microsoft\Documents\Learning Projects\AgentCustomReport\scripts"
 
 # 2. Run the Inventory API script
 .\Get-AllAgents-InventoryAPI-v2.ps1

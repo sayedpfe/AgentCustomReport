@@ -2,7 +2,7 @@
 
 ## ✅ Ready for Upload
 
-### Production Scripts (mzcustomscripts/)
+### Production Scripts (scripts/)
 1. **Get-AllAgents-InventoryAPI-v2.ps1** - Retrieves 115 agents with 6 fields from Inventory API
 2. **Get-CopilotCredits-v2.ps1** - Retrieves credits consumption data (365-day lookback)
 3. **Merge-InventoryAndCredits.ps1** - Combines both datasets into final report
@@ -108,7 +108,7 @@ AgentCustomReport/
 ├── README.md                           # Full technical documentation
 ├── CUSTOMER_RESPONSE.md               # Executive summary
 ├── GITHUB_CHECKLIST.md                # This file
-└── mzcustomscripts/
+└── scripts/
     ├── Get-AllAgents-InventoryAPI-v2.ps1
     ├── Get-CopilotCredits-v2.ps1
     └── Merge-InventoryAndCredits.ps1
@@ -132,7 +132,7 @@ AgentCustomReport/
 
 1. Clone repository
 2. Open PowerShell as Admin
-3. Navigate to `mzcustomscripts/`
+3. Navigate to `scripts/`
 4. Run three scripts in order:
    ```powershell
    .\Get-AllAgents-InventoryAPI-v2.ps1

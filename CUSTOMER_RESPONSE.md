@@ -261,7 +261,7 @@ All scripts and documentation are ready for GitHub upload:
 AgentCustomReport/
 ├── README.md                           # Complete technical documentation
 ├── CUSTOMER_RESPONSE.md               # This document
-└── mzcustomscripts/
+└── scripts/
     ├── Get-AllAgents-InventoryAPI-v2.ps1    # Inventory API (6 fields)
     ├── Get-CopilotCredits-v2.ps1            # Credits API (2 fields)
     └── Merge-InventoryAndCredits.ps1        # Combine datasets
