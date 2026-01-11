@@ -1,0 +1,44 @@
+# CSV files with actual customer data
+*.csv
+!samples/*.csv
+
+# PowerShell execution logs
+*.log
+*.txt
+
+# Archive/test files
+archive/
+test/
+
+# Credentials and secrets
+*.json
+*.xml
+secrets.ps1
+config.ps1
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Backup files
+*.bak
+*.backup
+*_backup*
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# Personal notes
+notes/
+personal/
+scratch/

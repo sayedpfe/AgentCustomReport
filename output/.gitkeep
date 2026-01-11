@@ -1,0 +1,5 @@
+# Output files will be generated here
+*.csv
+*.xlsx
+*.json
+*.parquet
