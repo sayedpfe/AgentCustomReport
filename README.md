@@ -1,4 +1,4 @@
-# Copilot Studio Agent Reporting Solution (v1.0)
+# Copilot Studio Agent Reporting Solution (v1.1)
 
 This repository provides PowerShell scripts to generate comprehensive usage and consumption reports for Copilot Studio agents across Power Platform environments using **Azure Resource Graph** and **Power Platform Licensing APIs**.
 
@@ -6,12 +6,29 @@ This repository provides PowerShell scripts to generate comprehensive usage and 
 
 This solution retrieves agent metadata and consumption data from Azure Resource Graph and Power Platform APIs to create a consolidated report with 8 of the 12 requested fields. The solution uses direct KQL queries through Azure Resource Graph for reliable data retrieval.
 
+**v1.1 Features:**
+- ✅ Certificate-based authentication (recommended for enterprise/automation)
+- ✅ Device Code Flow (backward compatible, interactive)
+- ✅ Service principal support for scheduled tasks
+- ✅ Non-interactive execution capability
+
 ## Quick Start
 
-**Single comprehensive script (recommended):**
+### Interactive Mode (Device Code Flow):
 ```powershell
 .\scripts\Get-CompleteCopilotReport.ps1
 ```
+
+### Enterprise/Automation Mode (Certificate-Based):
+```powershell
+.\scripts\Get-CompleteCopilotReport.ps1 `
+    -UseCertificateAuth `
+    -AppId "YOUR-APP-ID" `
+    -CertificateThumbprint "YOUR-CERT-THUMBPRINT" `
+    -TenantId "YOUR-TENANT-ID"
+```
+
+**📖 Setup Guide:** See [APP_REGISTRATION_SETUP.md](APP_REGISTRATION_SETUP.md) for certificate configuration
 
 This retrieves all 8 available fields in a single execution with automatic authentication handling.
 
@@ -75,8 +92,8 @@ PowerPlatformResources
 - **Endpoint**: `https://licensing.powerplatform.microsoft.com/v0.1-alpha/tenants/{tenantId}/entitlements/MCSMessages/environments/{environmentId}/resources?fromDate={MM-DD-YYYY}&toDate={MM-DD-YYYY}`
 - **Method**: GET
 - **Documentation**: ⚠️ **None - Discovered via browser developer tools**
-- **Authentication**: OAuth 2.0 (Device Code Flow)
-- **Client ID**: `51f81489-12ee-4a9e-aaae-a2591f45987d`
+- **Authentication**: OAuth 2.0 (Device Code Flow or Certificate-based)
+- **Client ID**: `51f81489-12ee-4a9e-aaae-a2591f45987d` (Device Code) or your App Registration ID (Certificate)
 - **Purpose**: Retrieves actual consumption data including billed and non-billed credits
 - **Date Requirements**: 
   - Dates are **MANDATORY** (API returns empty without them)
@@ -94,12 +111,60 @@ PowerPlatformResources
   - Feature type (Classic answer, Agent flow actions, Generative AI tools)
   - Billable vs Non-billable consumption
 
+## Authentication Methods
+
+### 1. Certificate-Based (Recommended for Enterprise)
+**Best for**: Automation, scheduled tasks, production environments
+
+**Setup**: See [APP_REGISTRATION_SETUP.md](APP_REGISTRATION_SETUP.md)
+
+**Usage**:
+```powershell
+.\scripts\Get-CompleteCopilotReport.ps1 `
+    -UseCertificateAuth `
+    -AppId "12345678-1234-1234-1234-123456789abc" `
+    -CertificateThumbprint "ABCDEF1234567890ABCDEF1234567890ABCDEF12" `
+    -TenantId "b22f8675-8375-455b-941a-67bee4cf7747"
+```
+
+**Advantages**:
+- ✅ Non-interactive (no user login required)
+- ✅ Suitable for automation and scheduled tasks
+- ✅ Service principal support
+- ✅ Enhanced security with certificate credentials
+- ✅ No token expiration issues for scheduled runs
+
+**Requirements**:
+- Azure AD App Registration
+- Certificate uploaded to app registration
+- Certificate installed on execution machine
+- API permissions configured and admin consent granted
+
+### 2. Device Code Flow (Interactive - Backward Compatible)
+**Best for**: Interactive testing, one-time runs, troubleshooting
+
+**Usage**:
+```powershell
+.\scripts\Get-CompleteCopilotReport.ps1
+```
+
+**Advantages**:
+- ✅ No setup required
+- ✅ Uses standard Microsoft public client
+- ✅ Works immediately without configuration
+
+**Limitations**:
+- ❌ Requires user browser interaction
+- ❌ Not suitable for automation
+- ❌ Cannot be used in scheduled tasks
+
 ## Scripts
 
 ### Get-CompleteCopilotReport.ps1 (Recommended - All-in-One Solution)
 Single comprehensive script that retrieves all available data in one execution.
 
 **Features**:
+- ✅ Two authentication methods (certificate or device code)
 - ✅ Automatic authentication handling (2 auth flows: Azure + Licensing)
 - ✅ Uses Azure Resource Graph with direct KQL (most reliable method)
 - ✅ Retrieves all 115 agents across all environments

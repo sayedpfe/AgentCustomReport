@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Complete Copilot Studio Agent Report - Single Script Solution (v1.0)
+    Complete Copilot Studio Agent Report - Single Script Solution (v1.1)
     
 .DESCRIPTION
     Retrieves comprehensive agent data from multiple sources:
@@ -13,8 +13,12 @@
     Uses Azure Resource Graph API with direct KQL queries (official Microsoft API) instead of
     the Power Platform Inventory API which has recent issues with KQLOM JSON format.
     
+    Supports two authentication methods:
+    - Certificate-based (recommended for enterprise/automation)
+    - Device Code Flow (interactive, backward compatible)
+    
 .PARAMETER TenantId
-    Azure AD Tenant ID (auto-detected from token if not provided)
+    Azure AD Tenant ID (required for certificate authentication)
     Default: b22f8675-8375-455b-941a-67bee4cf7747
     
 .PARAMETER LookbackDays
@@ -25,65 +29,194 @@
     Switch to include Solution ID and Description from Dataverse (experimental)
     Requires per-environment authentication and correct region URLs
     
+.PARAMETER UseCertificateAuth
+    Switch to use certificate-based authentication instead of Device Code Flow
+    Requires AppId and CertificateThumbprint parameters
+    
+.PARAMETER AppId
+    Azure AD Application (Client) ID for certificate authentication
+    Required when using -UseCertificateAuth
+    
+.PARAMETER CertificateThumbprint
+    Certificate thumbprint for authentication
+    Certificate must be installed in CurrentUser\My or LocalMachine\My store
+    Required when using -UseCertificateAuth
+    
 .EXAMPLE
     .\Get-CompleteCopilotReport.ps1
-    Generates complete report with 8 fields using 365-day lookback
+    Interactive authentication with Device Code Flow (default)
     
 .EXAMPLE
     .\Get-CompleteCopilotReport.ps1 -LookbackDays 90
-    Generates report with 90-day credits lookback
+    Report with 90-day credits lookback (Device Code Flow)
     
 .EXAMPLE
     .\Get-CompleteCopilotReport.ps1 -IncludeDataverse
-    Generates report with optional Dataverse fields (10 fields total)
+    Include Dataverse fields (10 fields total)
+    
+.EXAMPLE
+    .\Get-CompleteCopilotReport.ps1 -UseCertificateAuth -AppId "12345678-1234-1234-1234-123456789abc" -CertificateThumbprint "ABCDEF1234567890ABCDEF1234567890ABCDEF12"
+    Certificate-based authentication (non-interactive, recommended for automation)
+    
+.EXAMPLE
+    .\Get-CompleteCopilotReport.ps1 -UseCertificateAuth -AppId "12345678-1234-1234-1234-123456789abc" -CertificateThumbprint "ABCDEF1234567890ABCDEF1234567890ABCDEF12" -TenantId "your-tenant-id" -LookbackDays 90
+    Certificate authentication with custom parameters
     
 .NOTES
-    Version: 1.0
+    Version: 1.1
     Author: Agent Custom Report Solution
     Last Updated: 2026-01-16
     
-    Authentication: OAuth 2.0 Device Code Flow (2 authentications required)
-    - Azure Resource Graph: https://management.azure.com scope
-    - Licensing API: https://licensing.powerplatform.microsoft.com scope
-    - Dataverse (optional): Per-environment authentication
+    Authentication Methods:
+    1. Certificate-based (recommended for enterprise/automation):
+       - OAuth 2.0 with certificate credentials
+       - Non-interactive, suitable for scheduled tasks
+       - Requires App Registration with certificate uploaded
+       - API Permissions: https://management.azure.com/.default, https://licensing.powerplatform.microsoft.com/.default
+       
+    2. Device Code Flow (backward compatible):
+       - Interactive OAuth 2.0
+       - Requires user browser interaction
+       - No App Registration needed
     
     Output: CopilotAgents_CompleteReport_TIMESTAMP.csv
-#>
-    Number of days for credits historical data (default: 365)
     
-.PARAMETER IncludeDataverse
-    Attempt to retrieve Solution ID and Description from Dataverse (slower, requires permissions)
-    
-.EXAMPLE
-    .\Get-CompleteCopilotReport.ps1
-    
-.EXAMPLE
-    .\Get-CompleteCopilotReport.ps1 -LookbackDays 90 -IncludeDataverse
+    Setup Guide: See APP_REGISTRATION_SETUP.md for certificate configuration
 #>
 
 param(
     [string]$TenantId = "b22f8675-8375-455b-941a-67bee4cf7747",
     [int]$LookbackDays = 365,
-    [switch]$IncludeDataverse = $false
+    [switch]$IncludeDataverse = $false,
+    [switch]$UseCertificateAuth = $false,
+    [string]$AppId = "",
+    [string]$CertificateThumbprint = ""
 )
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ErrorActionPreference = "Continue"
 
+# Validate certificate authentication parameters
+if ($UseCertificateAuth) {
+    if ([string]::IsNullOrWhiteSpace($AppId)) {
+        Write-Host "❌ ERROR: -AppId is required when using certificate authentication" -ForegroundColor Red
+        exit 1
+    }
+    if ([string]::IsNullOrWhiteSpace($CertificateThumbprint)) {
+        Write-Host "❌ ERROR: -CertificateThumbprint is required when using certificate authentication" -ForegroundColor Red
+        exit 1
+    }
+    if ([string]::IsNullOrWhiteSpace($TenantId)) {
+        Write-Host "❌ ERROR: -TenantId is required when using certificate authentication" -ForegroundColor Red
+        exit 1
+    }
+}
+
 Write-Host @"
 
 ╔══════════════════════════════════════════════════════════════════════╗
-║   COMPLETE COPILOT STUDIO AGENT REPORT                              ║
-║   Single Script Solution - All Available Fields                     ║
+║   COMPLETE COPILOT STUDIO AGENT REPORT v1.1                         ║
+║   Certificate-Based & Device Code Authentication                    ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
 "@ -ForegroundColor Cyan
+
+if ($UseCertificateAuth) {
+    Write-Host "🔒 Authentication Mode: Certificate-based (Non-interactive)" -ForegroundColor Green
+    Write-Host "   App ID: $AppId" -ForegroundColor Gray
+    Write-Host "   Certificate: $CertificateThumbprint" -ForegroundColor Gray
+} else {
+    Write-Host "🔓 Authentication Mode: Device Code Flow (Interactive)" -ForegroundColor Yellow
+}
+Write-Host ""
 
 # ============================================================================
 # AUTHENTICATION FUNCTIONS
 # ============================================================================
 
-function Get-AuthToken {
+function Get-CertificateToken {
+    param(
+        [string]$Resource,
+        [string]$DisplayName,
+        [string]$AppId,
+        [string]$CertificateThumbprint,
+        [string]$TenantId
+    )
+    
+    Write-Host "`n🔐 Authenticating to $DisplayName (Certificate)..." -ForegroundColor Yellow
+    
+    try {
+        # Find certificate in CurrentUser\My store first, then LocalMachine\My
+        $cert = Get-Item "Cert:\CurrentUser\My\$CertificateThumbprint" -ErrorAction SilentlyContinue
+        if (-not $cert) {
+            $cert = Get-Item "Cert:\LocalMachine\My\$CertificateThumbprint" -ErrorAction SilentlyContinue
+        }
+        
+        if (-not $cert) {
+            throw "Certificate with thumbprint '$CertificateThumbprint' not found in CurrentUser\My or LocalMachine\My store"
+        }
+        
+        Write-Host "   ✓ Certificate found: $($cert.Subject)" -ForegroundColor Green
+        
+        # Create JWT assertion
+        $now = [DateTime]::UtcNow
+        $exp = $now.AddMinutes(10)
+        
+        $header = @{
+            alg = "RS256"
+            typ = "JWT"
+            x5t = [Convert]::ToBase64String($cert.GetCertHash()) -replace '\+', '-' -replace '/', '_' -replace '='
+        } | ConvertTo-Json -Compress
+        
+        $payload = @{
+            aud = "https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token"
+            exp = [Math]::Floor([decimal](Get-Date($exp).ToUniversalTime() - (Get-Date "1970-01-01")).TotalSeconds)
+            iss = $AppId
+            jti = [Guid]::NewGuid().ToString()
+            nbf = [Math]::Floor([decimal](Get-Date($now).ToUniversalTime() - (Get-Date "1970-01-01")).TotalSeconds)
+            sub = $AppId
+        } | ConvertTo-Json -Compress
+        
+        $headerBase64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($header)) -replace '\+', '-' -replace '/', '_' -replace '='
+        $payloadBase64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($payload)) -replace '\+', '-' -replace '/', '_' -replace '='
+        
+        $toSign = "$headerBase64.$payloadBase64"
+        $toSignBytes = [System.Text.Encoding]::UTF8.GetBytes($toSign)
+        
+        # Sign with certificate private key
+        $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
+        $signature = $rsa.SignData($toSignBytes, [System.Security.Cryptography.HashAlgorithmName]::SHA256, [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)
+        $signatureBase64 = [Convert]::ToBase64String($signature) -replace '\+', '-' -replace '/', '_' -replace '='
+        
+        $jwt = "$headerBase64.$payloadBase64.$signatureBase64"
+        
+        # Request token
+        $body = @{
+            client_id             = $AppId
+            client_assertion      = $jwt
+            client_assertion_type = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+            scope                 = "$Resource/.default"
+            grant_type            = "client_credentials"
+        }
+        
+        $response = Invoke-RestMethod -Uri "https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token" -Method POST -Body $body -ContentType "application/x-www-form-urlencoded"
+        
+        Write-Host "   ✓ Authenticated to $DisplayName`n" -ForegroundColor Green
+        
+        return $response.access_token
+    }
+    catch {
+        Write-Host "   ❌ Certificate authentication failed: $($_.Exception.Message)" -ForegroundColor Red
+        throw
+    }
+}
+
+function Get-DeviceCodeToken {
+    param(
+        [string]$Resource,
+        [string]$DisplayName
+    )
+function Get-DeviceCodeToken {
     param(
         [string]$Resource,
         [string]$DisplayName
@@ -140,6 +273,21 @@ function Get-AuthToken {
     catch {
         Write-Host "   ❌ Authentication failed: $($_.Exception.Message)" -ForegroundColor Red
         throw
+    }
+}
+
+function Get-AuthToken {
+    param(
+        [string]$Resource,
+        [string]$DisplayName
+    )
+    
+    if ($script:UseCertificateAuth) {
+        return Get-CertificateToken -Resource $Resource -DisplayName $DisplayName `
+                                    -AppId $script:AppId -CertificateThumbprint $script:CertificateThumbprint `
+                                    -TenantId $script:TenantId
+    } else {
+        return Get-DeviceCodeToken -Resource $Resource -DisplayName $DisplayName
     }
 }
 
