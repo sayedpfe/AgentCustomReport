@@ -82,7 +82,7 @@ Write-Host "Certificate exported to: $certPath" -ForegroundColor Yellow
 
 ### Required Permissions:
 
-The app needs access to two APIs:
+The app needs access to two APIs. **IMPORTANT**: Test each API separately to validate permissions.
 
 #### 4.1 Azure Service Management (Azure Resource Graph)
 
@@ -91,19 +91,33 @@ The app needs access to two APIs:
 3. Select **Delegated permissions** → **user_impersonation**
 4. Click **Add permissions**
 
-> **Note:** For service principal scenarios, use **Application permissions** instead if available. However, Azure Resource Graph typically requires delegated permissions.
+**✅ Test this first**: Run `.\tests\Test-CertAuth-InventoryAPI.ps1` to validate
 
-#### 4.2 Power Platform API (Licensing)
+> **Note:** Azure Resource Graph works with both delegated and application permissions. Certificate-based auth uses client_credentials flow (app-only). If you experience issues, ensure the permission is granted and admin consent is provided.
+
+#### 4.2 Power Platform API (Licensing) - ⚠️ EXPERIMENTAL
+
+**IMPORTANT**: The Power Platform Licensing API may not support application (app-only) permissions required for certificate-based authentication.
+
+**Recommendation for v1.1**: Use **hybrid authentication**:
+- ✅ Certificate auth for Azure Resource Graph (works perfectly)
+- ✅ Device Code Flow for Licensing API (requires user interaction)
+
+If you still want to try certificate auth for Licensing API:
 
 1. Click **API permissions** → **+ Add a permission**
 2. Select **APIs my organization uses**
-3. Search for: `Power Platform API` or `49676daf-ff23-4e2c-a0f7-e1ff93c85e66`
-4. Select **Application permissions** → **AppManagement.ApplicationPackages.Install**
+3. Search for one of these:
+   - `Power Platform API` (App ID: `49676daf-ff23-4e2c-a0f7-e1ff93c85e66`)
+   - `licensing.powerplatform.microsoft.com`
+4. Check available permissions:
+   - Try **Application permissions** (if available)
+   - Or **Delegated permissions** (may not work with certificate auth)
 5. Click **Add permissions**
 
-> **Alternative:** If the above permission is unavailable, try:
-> - Search for: `Power Apps Service` or `475226c6-020e-4fb2-8a90-7a972cbfc1d4`
-> - Select available application permissions
+**✅ Test this**: Run `.\tests\Test-CertAuth-LicensingAPI.ps1` to validate
+
+> **Known Limitation**: The Licensing API is v0.1-alpha and undocumented. It may require delegated permissions with user context, which doesn't work with certificate-based (app-only) authentication. If this fails, use Device Code Flow for this API specifically.
 
 #### 4.3 (Optional) Dataverse
 
@@ -139,7 +153,40 @@ This improves logging and debugging.
 
 ## Step 6: Test Authentication
 
-Run the script with certificate authentication:
+**IMPORTANT**: Test each API separately to identify permission issues.
+
+### Test 1: Azure Resource Graph (Inventory API)
+
+```powershell
+.\tests\Test-CertAuth-InventoryAPI.ps1 `
+    -AppId "YOUR-APP-ID-HERE" `
+    -CertificateThumbprint "YOUR-CERTIFICATE-THUMBPRINT-HERE" `
+    -TenantId "YOUR-TENANT-ID-HERE"
+```
+
+**Expected Result**: Should retrieve sample agents successfully.
+
+**If this fails**, check:
+- Certificate is uploaded to App Registration
+- Azure Service Management permission is granted
+- Admin consent is provided
+
+### Test 2: Power Platform Licensing API
+
+```powershell
+.\tests\Test-CertAuth-LicensingAPI.ps1 `
+    -AppId "YOUR-APP-ID-HERE" `
+    -CertificateThumbprint "YOUR-CERTIFICATE-THUMBPRINT-HERE" `
+    -TenantId "YOUR-TENANT-ID-HERE"
+```
+
+**Expected Result**: May succeed or may return 401/403 error.
+
+**If this fails with 401/403**: This is expected. The Licensing API likely requires delegated permissions (user context), not application permissions (app-only). See "Hybrid Authentication" section below.
+
+### Test 3: Full Script
+
+Once both tests pass, run the complete script:
 
 ```powershell
 .\Get-CompleteCopilotReport.ps1 `
@@ -228,6 +275,49 @@ $cert.HasPrivateKey  # Should return True
 
 # If False, reimport certificate with private key (PFX format)
 ```
+
+---
+
+## Hybrid Authentication Approach (Recommended for v1.1)
+
+If the Licensing API test fails with permission errors, use this hybrid approach:
+
+### Why Hybrid?
+
+The Power Platform Licensing API (v0.1-alpha) is undocumented and may require **delegated permissions** (user context), which doesn't work with certificate-based authentication (app-only flow). 
+
+**Solution**: Use the best authentication method for each API:
+- ✅ **Azure Resource Graph**: Certificate-based (non-interactive)
+- ✅ **Licensing API**: Device Code Flow (one-time user login)
+
+### Implementation
+
+The main script will need to be modified to support hybrid authentication. For now, use one of these approaches:
+
+#### Option 1: Full Certificate Auth (if both tests pass)
+```powershell
+.\Get-CompleteCopilotReport.ps1 `
+    -UseCertificateAuth `
+    -AppId "YOUR-APP-ID" `
+    -CertificateThumbprint "YOUR-THUMBPRINT" `
+    -TenantId "YOUR-TENANT-ID"
+```
+
+#### Option 2: Device Code Flow (v1.0 compatibility)
+```powershell
+.\Get-CompleteCopilotReport.ps1
+```
+
+#### Option 3: Wait for v1.2 (Hybrid Mode)
+Future version will support:
+```powershell
+.\Get-CompleteCopilotReport.ps1 `
+    -UseHybridAuth `
+    -AppId "YOUR-APP-ID" `
+    -CertificateThumbprint "YOUR-THUMBPRINT" `
+    -TenantId "YOUR-TENANT-ID"
+```
+This will use certificate for Azure Resource Graph and fall back to Device Code for Licensing API.
 
 ---
 
