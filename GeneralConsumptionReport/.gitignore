@@ -1,0 +1,9 @@
+# Generated CSV reports
+output/
+
+# Schema discovery dumps
+SchemaDiscovery_*/
+
+# Token cache (sensitive — treat like a password)
+*.copilot-report-tokens.json
+.copilot-report-tokens.json
