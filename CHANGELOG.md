@@ -2,6 +2,71 @@
 
 All notable changes to the Copilot Studio Agent Reporting Solution are documented here.
 
+## [v1.2] - 2026-01-25
+
+### Added - ASP.NET Core Web Application
+- **Web-Based Reporting Dashboard**: Full-featured ASP.NET Core web application
+  - Azure AD SSO authentication for Power Platform Inventory API
+  - Device Code Flow for Licensing API (same approach as PowerShell script)
+  - Real-time agent inventory with credit consumption data
+  - Interactive data visualization with Chart.js
+
+### Key Features
+- **KPI Summary Cards**: At-a-glance metrics for total agents, credits, billed/non-billed breakdown
+- **Interactive Charts**: Bar chart for top 10 agents by usage, doughnut chart for billed vs non-billed
+- **Enhanced Table Features**:
+  - Sortable columns (click headers to sort)
+  - Search/filter by name, environment, or source
+  - Column visibility toggle
+  - Pagination with configurable page size (10/25/50/100/All)
+- **CSV Export**: Download comprehensive reports
+
+### Technical Implementation
+
+#### Authentication Architecture
+The webapp uses a **dual authentication approach**:
+
+1. **Power Platform Inventory API**: Azure AD SSO (confidential client)
+   - Users sign in once with Microsoft account
+   - On-behalf-of (OBO) flow for API access
+   - Standard app registration works
+
+2. **Licensing API**: Device Code Flow (public client)
+   - **Key Discovery**: The undocumented Licensing API cannot be accessed via app registration permissions
+   - Uses Power Platform's well-known public client ID: `51f81489-12ee-4a9e-aaae-a2591f45987d`
+   - Same approach as PowerShell script
+   - Refresh tokens stored encrypted in session (valid 90 days)
+   - Access tokens auto-refresh when expired
+
+#### Why Device Code Flow for Licensing API?
+The Licensing API (`https://licensing.powerplatform.microsoft.com/v0.1-alpha`) is:
+- Undocumented (discovered via browser dev tools)
+- First-party Microsoft internal API
+- Cannot grant permissions to custom app registrations
+- Only accessible via Microsoft's public client IDs
+
+This is why the PowerShell script uses `51f81489-12ee-4a9e-aaae-a2591f45987d` - it's the only way to authenticate to this API.
+
+### Files Added/Modified
+
+| File | Description |
+|------|-------------|
+| `webapp/aspnet/Services/PublicClientTokenService.cs` | Device code flow with refresh token handling |
+| `webapp/aspnet/Services/LicensingApiService.cs` | Licensing API integration using public client |
+| `webapp/aspnet/Services/AzureResourceGraphService.cs` | Power Platform Inventory API |
+| `webapp/aspnet/Controllers/OAuthController.cs` | Device code flow UI endpoints |
+| `webapp/aspnet/Controllers/ReportController.cs` | Report generation and display |
+| `webapp/aspnet/Views/Report/Index.cshtml` | Enhanced agents list with charts |
+| `webapp/aspnet/Views/OAuth/DeviceCode.cshtml` | Device code authorization UI |
+
+### Security Enhancements
+- Refresh tokens encrypted using ASP.NET Core Data Protection
+- Session-based token storage (HttpOnly, Secure cookies)
+- Automatic token refresh before expiration
+- Clear separation between SSO auth and Licensing API auth
+
+---
+
 ## [v1.1] - 2026-01-16
 
 ### Added
@@ -36,7 +101,7 @@ All notable changes to the Copilot Studio Agent Reporting Solution are documente
   - Added feature highlights for v1.1
 
 ### Backward Compatibility
-- ✅ Fully backward compatible with v1.0
+- Fully backward compatible with v1.0
 - Device Code Flow remains the default (no parameters needed)
 - All existing scripts and workflows continue to function without changes
 
@@ -110,6 +175,21 @@ All notable changes to the Copilot Studio Agent Reporting Solution are documente
 
 ---
 
+## Version Comparison
+
+| Feature | v1.0 | v1.1 | v1.2 |
+|---------|------|------|------|
+| PowerShell Script | Yes | Yes | Yes |
+| Web Application | No | No | **Yes** |
+| Device Code Flow | Yes | Yes | Yes |
+| Certificate Auth | No | **Yes** | Yes |
+| Refresh Token Support | No | No | **Yes (Web)** |
+| Interactive UI | No | No | **Yes** |
+| Charts/Visualization | No | No | **Yes** |
+| On-Demand Reports | Manual | Manual | **Browser** |
+
+---
+
 ## Versioning Scheme
 
 **Format**: `vMAJOR.MINOR`
@@ -120,14 +200,14 @@ All notable changes to the Copilot Studio Agent Reporting Solution are documente
 **Branch Strategy**:
 - `main`: Production releases
 - `v1.0-stable`: Preserved v1.0 with Device Code authentication
-- `v1.1-app-registration`: Active development for certificate authentication
-- Feature branches as needed
+- `v1.1-app-registration`: Certificate authentication branch
+- `v1.2-webapp`: Web application implementation
 
 ---
 
 ## Upcoming Features (Roadmap)
 
-### v1.2 (Planned)
+### v1.3 (Planned)
 - Azure Key Vault integration for certificate storage
 - Enhanced logging and transcript support
 - Email report delivery
@@ -151,5 +231,5 @@ For issues, questions, or contributions:
 
 ---
 
-**Repository**: https://github.com/sayedpfe/AgentCustomReport  
+**Repository**: https://github.com/sayedpfe/AgentCustomReport
 **License**: MIT (see [LICENSE](LICENSE))

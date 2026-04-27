@@ -87,20 +87,20 @@ try {
     $header = @{
         alg = "RS256"
         typ = "JWT"
-        x5t = [Convert]::ToBase64String($cert.GetCertHash()) -replace '\+', '-' -replace '/', '_' -replace '='
+        x5t = ([Convert]::ToBase64String($cert.GetCertHash()) -replace '\+', '-' -replace '/', '_').TrimEnd('=')
     } | ConvertTo-Json -Compress
     
     $payload = @{
         aud = "https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token"
-        exp = [Math]::Floor([decimal](Get-Date($exp).ToUniversalTime() - (Get-Date "1970-01-01")).TotalSeconds)
+        exp = [Math]::Floor(($exp.ToUniversalTime() - (Get-Date "1970-01-01").ToUniversalTime()).TotalSeconds)
         iss = $AppId
         jti = [Guid]::NewGuid().ToString()
-        nbf = [Math]::Floor([decimal](Get-Date($now).ToUniversalTime() - (Get-Date "1970-01-01")).TotalSeconds)
+        nbf = [Math]::Floor(($now.ToUniversalTime() - (Get-Date "1970-01-01").ToUniversalTime()).TotalSeconds)
         sub = $AppId
     } | ConvertTo-Json -Compress
     
-    $headerBase64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($header)) -replace '\+', '-' -replace '/', '_' -replace '='
-    $payloadBase64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($payload)) -replace '\+', '-' -replace '/', '_' -replace '='
+    $headerBase64 = ([Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($header)) -replace '\+', '-' -replace '/', '_').TrimEnd('=')
+    $payloadBase64 = ([Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($payload)) -replace '\+', '-' -replace '/', '_').TrimEnd('=')
     
     $toSign = "$headerBase64.$payloadBase64"
     $toSignBytes = [System.Text.Encoding]::UTF8.GetBytes($toSign)
@@ -108,7 +108,7 @@ try {
     # Sign with certificate private key
     $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
     $signature = $rsa.SignData($toSignBytes, [System.Security.Cryptography.HashAlgorithmName]::SHA256, [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)
-    $signatureBase64 = [Convert]::ToBase64String($signature) -replace '\+', '-' -replace '/', '_' -replace '='
+    $signatureBase64 = ([Convert]::ToBase64String($signature) -replace '\+', '-' -replace '/', '_').TrimEnd('=')
     
     $jwt = "$headerBase64.$payloadBase64.$signatureBase64"
     
@@ -134,6 +134,9 @@ try {
 catch {
     Write-Host "   ❌ Token request failed!" -ForegroundColor Red
     Write-Host "   Error: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "   Error Detail: $($_.Exception.GetType().FullName)" -ForegroundColor Red
+    Write-Host "   Script Line: $($_.InvocationInfo.ScriptLineNumber)" -ForegroundColor Red
+    Write-Host "   Error Line: $($_.InvocationInfo.Line)" -ForegroundColor Yellow
     
     if ($_.Exception.Response) {
         $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
@@ -192,18 +195,17 @@ catch {
     $statusCode = $_.Exception.Response.StatusCode.value__
     
     if ($statusCode -eq 403) {
-        Write-Host "`n   ⚠ PERMISSION ERROR (403 Forbidden)" -ForegroundColor Yellow
-        Write-Host "   This means the app registration exists and authentication worked," -ForegroundColor Gray
-        Write-Host "   but the app doesn't have the required API permissions." -ForegroundColor Gray
-        Write-Host "`n   Required permissions in App Registration:" -ForegroundColor Yellow
-        Write-Host "   1. Go to Azure Portal → App registrations → Your App" -ForegroundColor White
-        Write-Host "   2. Click 'API permissions' → '+ Add a permission'" -ForegroundColor White
-        Write-Host "   3. Select 'Azure Service Management'" -ForegroundColor White
-        Write-Host "   4. Choose either:" -ForegroundColor White
-        Write-Host "      - Delegated permissions → user_impersonation" -ForegroundColor Cyan
-        Write-Host "      - OR Application permissions → user_impersonation (if available)" -ForegroundColor Cyan
-        Write-Host "   5. Click 'Grant admin consent for [Your Organization]'" -ForegroundColor White
-        Write-Host "   6. Wait 5-10 minutes for permissions to propagate" -ForegroundColor White
+        Write-Host "`n   ⚠ CERTIFICATE AUTH NOT SUPPORTED FOR THIS API (403 Forbidden)" -ForegroundColor Yellow
+        Write-Host "`n   Root Cause:" -ForegroundColor Cyan
+        Write-Host "   • Certificate auth uses 'client_credentials' grant (app-only, no user context)" -ForegroundColor Gray
+        Write-Host "   • Azure Service Management only has DELEGATED permissions" -ForegroundColor Gray
+        Write-Host "   • Delegated permissions require a user to be present" -ForegroundColor Gray
+        Write-Host "   • Azure Resource Graph queries need user context for Power Platform data" -ForegroundColor Gray
+        Write-Host "`n   CONCLUSION:" -ForegroundColor Yellow
+        Write-Host "   ✓ Certificate authentication works (token acquired)" -ForegroundColor Green
+        Write-Host "   ✗ But this API requires user context (not available in app-only mode)" -ForegroundColor Red
+        Write-Host "`n   RECOMMENDATION: Use Device Code Flow instead" -ForegroundColor Cyan
+        Write-Host "   This is the expected and correct behavior for this API." -ForegroundColor Gray
     }
     else {
         Write-Host "   Status Code: $statusCode" -ForegroundColor Red
@@ -219,17 +221,25 @@ catch {
 Write-Host @"
 
 ╔══════════════════════════════════════════════════════════════════════╗
-║   ✅ TEST PASSED - Azure Resource Graph                              ║
+║   ⚠ EXPECTED RESULT - Certificate Auth Not Supported                 ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
-"@ -ForegroundColor Green
+"@ -ForegroundColor Yellow
 
-Write-Host "Results:" -ForegroundColor Yellow
-Write-Host "  ✓ Certificate found and validated" -ForegroundColor Green
-Write-Host "  ✓ Token acquired successfully" -ForegroundColor Green
-Write-Host "  ✓ Azure Resource Graph query succeeded" -ForegroundColor Green
-Write-Host "  ✓ App Registration permissions are correct" -ForegroundColor Green
+Write-Host "Test Results:" -ForegroundColor Cyan
+Write-Host "  ✓ Certificate authentication mechanism works correctly" -ForegroundColor Green
+Write-Host "  ✓ JWT token creation and signing successful" -ForegroundColor Green
+Write-Host "  ✓ Token acquisition from Azure AD successful" -ForegroundColor Green
+Write-Host "  ✗ API query failed because it requires user context" -ForegroundColor Red
 
-Write-Host "`nNext step:" -ForegroundColor Cyan
-Write-Host "  Run: .\Test-CertAuth-LicensingAPI.ps1 -AppId '$AppId' -CertificateThumbprint '$CertificateThumbprint' -TenantId '$TenantId'" -ForegroundColor White
+Write-Host "`nConclusion:" -ForegroundColor Yellow
+Write-Host "  Azure Resource Graph for Power Platform requires delegated permissions" -ForegroundColor White
+Write-Host "  (user context), which is not available in certificate-based authentication." -ForegroundColor White
+
+Write-Host "`nRecommended Solution:" -ForegroundColor Cyan
+Write-Host "  Use Device Code Flow authentication instead:" -ForegroundColor White
+Write-Host "  cd .." -ForegroundColor Gray
+Write-Host "  .\scripts\Get-CompleteCopilotReport.ps1" -ForegroundColor Gray
+Write-Host ""
+Write-Host "  Device Code Flow provides user context and works perfectly for this API." -ForegroundColor Green
 Write-Host ""

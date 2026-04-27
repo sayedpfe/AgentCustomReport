@@ -1,18 +1,66 @@
-# Copilot Studio Agent Reporting Solution (v1.1)
+# Copilot Studio Agent Reporting Solution (v1.2)
 
-This repository provides PowerShell scripts to generate comprehensive usage and consumption reports for Copilot Studio agents across Power Platform environments using **Azure Resource Graph** and **Power Platform Licensing APIs**.
+This repository provides **PowerShell scripts** and a **web application** to generate comprehensive usage and consumption reports for Copilot Studio agents across Power Platform environments using **Azure Resource Graph** and **Power Platform Licensing APIs**.
 
 ## Overview
 
 This solution retrieves agent metadata and consumption data from Azure Resource Graph and Power Platform APIs to create a consolidated report with 8 of the 12 requested fields. The solution uses direct KQL queries through Azure Resource Graph for reliable data retrieval.
 
-**v1.1 Features:**
+**v1.2 Features:**
+- ✅ **NEW: ASP.NET Core Web Application** with interactive dashboard
 - ✅ Certificate-based authentication (recommended for enterprise/automation)
 - ✅ Device Code Flow (backward compatible, interactive)
 - ✅ Service principal support for scheduled tasks
-- ✅ Non-interactive execution capability
+- ✅ Refresh token support for Licensing API (web app)
+- ✅ Interactive charts and KPI cards (web app)
 
-## Quick Start
+## Choose Your Solution
+
+| Solution | Best For | Setup Complexity |
+|----------|----------|------------------|
+| **[Web App](webapp/)** | Teams, on-demand reports, non-technical users | Medium |
+| **PowerShell** | Automation, single user, scripts | Low |
+
+---
+
+## Web Application (v1.2) - NEW
+
+A full-featured ASP.NET Core web application with Azure AD authentication and interactive dashboard.
+
+### Features
+- Azure AD Single Sign-On
+- Real-time agent inventory display
+- Credit consumption visualization with Chart.js
+- KPI summary cards
+- Sortable/filterable/paginated table
+- CSV export
+
+### Quick Start (Web App)
+```bash
+cd webapp/aspnet
+dotnet restore
+dotnet run
+# Navigate to https://localhost:5001
+```
+
+### Screenshots
+See the [demo video](Video/AgentCustomReport.mp4) for a walkthrough.
+
+### Key Technical Discovery
+The Licensing API (`https://licensing.powerplatform.microsoft.com/v0.1-alpha`) **cannot be accessed via standard app registration**. It requires using Microsoft's public client ID (`51f81489-12ee-4a9e-aaae-a2591f45987d`) with Device Code Flow - the same approach used in the PowerShell script.
+
+The web app implements this via:
+1. Azure AD SSO for Power Platform Inventory API (standard)
+2. Device Code Flow for Licensing API (one-time authorization per session)
+3. Encrypted refresh tokens for seamless re-authentication
+
+See [webapp/README.md](webapp/README.md) for detailed setup instructions.
+
+---
+
+## PowerShell Scripts
+
+## Quick Start (PowerShell)
 
 ### Interactive Mode (Device Code Flow):
 ```powershell

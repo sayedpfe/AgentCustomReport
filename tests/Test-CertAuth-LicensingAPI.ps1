@@ -82,20 +82,20 @@ try {
     $header = @{
         alg = "RS256"
         typ = "JWT"
-        x5t = [Convert]::ToBase64String($cert.GetCertHash()) -replace '\+', '-' -replace '/', '_' -replace '='
+        x5t = ([Convert]::ToBase64String($cert.GetCertHash()) -replace '\+', '-' -replace '/', '_').TrimEnd('=')
     } | ConvertTo-Json -Compress
     
     $payload = @{
         aud = "https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token"
-        exp = [Math]::Floor([decimal](Get-Date($exp).ToUniversalTime() - (Get-Date "1970-01-01")).TotalSeconds)
+        exp = [Math]::Floor(($exp.ToUniversalTime() - (Get-Date "1970-01-01").ToUniversalTime()).TotalSeconds)
         iss = $AppId
         jti = [Guid]::NewGuid().ToString()
-        nbf = [Math]::Floor([decimal](Get-Date($now).ToUniversalTime() - (Get-Date "1970-01-01")).TotalSeconds)
+        nbf = [Math]::Floor(($now.ToUniversalTime() - (Get-Date "1970-01-01").ToUniversalTime()).TotalSeconds)
         sub = $AppId
     } | ConvertTo-Json -Compress
     
-    $headerBase64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($header)) -replace '\+', '-' -replace '/', '_' -replace '='
-    $payloadBase64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($payload)) -replace '\+', '-' -replace '/', '_' -replace '='
+    $headerBase64 = ([Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($header)) -replace '\+', '-' -replace '/', '_').TrimEnd('=')
+    $payloadBase64 = ([Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($payload)) -replace '\+', '-' -replace '/', '_').TrimEnd('=')
     
     $toSign = "$headerBase64.$payloadBase64"
     $toSignBytes = [System.Text.Encoding]::UTF8.GetBytes($toSign)
@@ -103,7 +103,7 @@ try {
     # Sign with certificate private key
     $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
     $signature = $rsa.SignData($toSignBytes, [System.Security.Cryptography.HashAlgorithmName]::SHA256, [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)
-    $signatureBase64 = [Convert]::ToBase64String($signature) -replace '\+', '-' -replace '/', '_' -replace '='
+    $signatureBase64 = ([Convert]::ToBase64String($signature) -replace '\+', '-' -replace '/', '_').TrimEnd('=')
     
     $jwt = "$headerBase64.$payloadBase64.$signatureBase64"
     
